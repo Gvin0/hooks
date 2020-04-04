@@ -1,9 +1,10 @@
-import React, { useReducer, useCallback } from 'react';
+import React, { useReducer, useCallback, useEffect } from 'react';
 
 import IngredientForm from './IngredientForm';
 import IngredientList from './IngredientList';
 import ErrorModal from '../UI/ErrorModal'
 import Search from './Search';
+import useHttp from '../../hooks/http';
 
 
 // yvelaperi aq gvaq da reduceris gamoyeneba magito aris praqtikuli 
@@ -22,62 +23,66 @@ const ingredientReducer = (curState, action) => {
   }
 }
 
-const httpReducer = (httpState, action) => {
-  switch (action.type) {
-    case 'SEND_REQUEST_ADD':
-      return { ...httpState, addLoading: true, error: null }
-    case 'SEND_REQUEST_DELETE':
-      return { ...httpState, deleteLoading: true, error: null, deletedIngId: action.id }
-    case 'RESPONSE_ADD':
-      return { ...httpState, addLoading: false }
-    case 'RESPONSE_DELETE':
-      return { ...httpState, deleteLoading: false }
-    case 'ERROR_ADD':
-      return { ...httpState, addLoading: false, error: action.error }
-    case 'ERROR_DELETE':
-      return { ...httpState, deleteLoading: false, error: action.error }
-    case 'CLEAR':
-      return { ...httpState, error: null }
-    default:
-      throw new Error('aq ra gindaa!!!');
-  }
-}
-
 function Ingredients() {
   const [ingredientsState, dispatchIng] = useReducer(ingredientReducer, []); // tavidan [] wava state argumentshi 
-  const [httpState, dispatchHttp] = useReducer(httpReducer, {
-    addLoading: false
-    , deleteLoading: false
-    , deletedIngId: null
-  });
+  //useHttp rom daaupdatetdeba anu state shecvleba avtomaturat darenderdeba Ingredients esec
+  const { addLoading, deleteLoading, extra, reqIdentifier, data, sendRequest, clear, error } = useHttp();
 
-  const addIngredientHandler = (ing) => {
-    dispatchHttp({ type: 'SEND_REQUEST_ADD' });
-    fetch('https://react-hooks-add7b.firebaseio.com/ingredients.json', {
-      method: 'POST',
-      body: JSON.stringify(ing),
-      headers: { 'Content-Type': 'application.json' }
-    }).then(response => {
-      dispatchHttp({ type: 'RESPONSE_ADD' });
-      return response.json();
-    }).then(responseData => {
-      dispatchIng({ type: 'ADD', ingredient: { id: responseData.name, ...ing } });
-    }).catch(error => {
-      dispatchHttp({ type: 'ERROR_ADD', error: error.message });
-    });
-  };
+  useEffect(() => {
+    console.log('blblb');
+    if (!deleteLoading && !error && reqIdentifier === 'SEND_REQUEST_DELETE') {
+      dispatchIng({ type: 'DELETE', id: extra });
+    } else if (!addLoading && !error && reqIdentifier === 'SEND_REQUEST_ADD') {
+      dispatchIng({ type: 'ADD', ingredient: { id: data.name, ...extra } });
+    }
 
-  const removeIngredientHandler = (id) => {
-    dispatchHttp({ type: 'SEND_REQUEST_DELETE', id: id });
-    fetch(`https://react-hooks-add7b.firebaseio.com/ingredients/${id}.json`, {
-      method: 'DELETE'
-    }).then(response => {
-      dispatchHttp({ type: 'RESPONSE_DELETE' });
-      dispatchIng({ type: 'DELETE', id: id });
-    }).catch(error => {
-      dispatchHttp({ type: 'ERROR_DELETE', error: error.message });
-    });
-  };
+  }, [data, extra, deleteLoading, addLoading, reqIdentifier, error])
+
+
+  //useCallbacks viyenebt optimiziaciistvis
+  //magram tu ingredientForm ar iqneba React.memo_shi ise azri ar aqvs
+  //dependecty ar gvaqvs magitoa []: 
+  //ing shida parametria, dispatchHttp kide tviton react ar daarenderebs roca ar iqneba sachiro
+  const addIngredientHandler = useCallback((ing) => {
+    sendRequest(`https://react-hooks-add7b.firebaseio.com/ingredients.json`
+      , 'SEND_REQUEST_ADD'
+      , 'RESPONSE_ADD'
+      , 'ERROR_ADD'
+      , 'POST'
+      , ing
+      , JSON.stringify(ing));
+    // dispatchHttp({ type: 'SEND_REQUEST_ADD' });
+    // fetch('https://react-hooks-add7b.firebaseio.com/ingredients.json', {
+    //   method: 'POST',
+    //   body: JSON.stringify(ing),
+    //   headers: { 'Content-Type': 'application.json' }
+    // }).then(response => {
+    //   dispatchHttp({ type: 'RESPONSE_ADD' });
+    //   return response.json();
+    // }).then(responseData => {
+    //   dispatchIng({ type: 'ADD', ingredient: { id: responseData.name, ...ing } });
+    // }).catch(error => {
+    //   dispatchHttp({ type: 'ERROR_ADD', error: error.message });
+    // });
+  }, [sendRequest]);
+
+  const removeIngredientHandler = useCallback((id) => {
+    sendRequest(`https://react-hooks-add7b.firebaseio.com/ingredients/${id}.json`
+      , 'SEND_REQUEST_DELETE'
+      , 'RESPONSE_DELETE'
+      , 'ERROR_DELETE'
+      , 'DELETE'
+      , id);
+    //dispatchHttp({ type: 'SEND_REQUEST_DELETE', id: id });
+    // fetch(`https://react-hooks-add7b.firebaseio.com/ingredients/${id}.json`, {
+    //   method: 'DELETE'
+    // }).then(response => {
+    //   dispatchHttp({ type: 'RESPONSE_DELETE' });
+    //   dispatchIng({ type: 'DELETE', id: id });
+    // }).catch(error => {
+    //   dispatchHttp({ type: 'ERROR_DELETE', error: error.message });
+    // });
+  }, [sendRequest]);
 
   // useCallback is mtavari mugami aris rom , roca mshobeli renderdeba
   // axlidan iqmndeba yvelaperi ANU PUNQCIEBIC
@@ -90,23 +95,26 @@ function Ingredients() {
     dispatchIng({ type: 'SET', ingredients: filteredIngredients });
   }, []);
 
-  const closeHandler = () => {
-    dispatchHttp({ type: 'CLEAR' });
-  }
+  //ErrorModal ideti patara komponentia aq realurat arc aris sachiro
+  //optimizacia radganac virtual domis checks ragac pontshi
+  //patara komponentis gadarendereba jobia
+  const closeHandler = useCallback(() => {
+    clear();
+  }, [clear]);
 
   return (
     <div className="App">
-      {httpState.error && <ErrorModal onClose={closeHandler}> {httpState.error} </ErrorModal>}
+      {error && <ErrorModal onClose={closeHandler}> {error} </ErrorModal>}
       <IngredientForm onAddIngredient={addIngredientHandler}
-        loading={httpState.addLoading}
+        loading={addLoading}
       />
       <section>
         <Search onLoadIngredients={filteredIngredientsHandler} />
         <IngredientList
           ingredients={ingredientsState}
           onRemoveItem={removeIngredientHandler}
-          deleteLoading={httpState.deleteLoading}
-          deletedItem={httpState.deletedIngId} />
+          deleteLoading={deleteLoading}
+          deletedItem={extra} />
       </section>
     </div>
   );
