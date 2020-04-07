@@ -1,5 +1,9 @@
 import { useReducer, useCallback } from 'react';
 
+// am states componentebi ar daishareben
+// anu ar aris GlobalState rogorc redux
+// yvelastvis iqneba individualuri
+// daishareben marto useHttp-sendRequest logikas !!!
 const initialState = {
     addLoading: false
     , deleteLoading: false

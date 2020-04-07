@@ -8,7 +8,8 @@ import useHttp from '../../hooks/http';
 
 
 // yvelaperi aq gvaq da reduceris gamoyeneba magito aris praqtikuli 
-
+// es aranairat ar aris GlobalState rogorc redux!!!
+// anu ar dasharedeba marto am componentistvis iqneba
 //stateshi data avtomaturat modis by react tavidan [] shemdeg rac ingredients shi iqneba
 const ingredientReducer = (curState, action) => {
   switch (action.type) {
